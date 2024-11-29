@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Optional, Dict
 from enum import Enum
 from targeted_adversarial.io import load_imagenet_classes
+from targeted_adversarial.timm_models import get_model
+from targeted_adversarial import pgd_linf_targ
 
 app = typer.Typer(
     name="targeted-adversarial",
@@ -41,7 +43,7 @@ def list_classes():
 def run_attack(
     path_to_source_image: Path = typer.Argument(
         ...,
-        help="Path to the source image file",
+        help="Path to the source image file, should be an RGB jpeg file",
         exists=True,
         file_okay=True,
         dir_okay=False,
@@ -55,7 +57,7 @@ def run_attack(
     epsilon: float = typer.Option(
         0.1,
         "--epsilon", "-e",
-        help="Maximum perturbation size (L∞ norm)",
+        help="Maximum perturbation size (L infinity norm)",
         callback=validate_epsilon,
         show_default=True,
     ),
@@ -106,6 +108,9 @@ def run_attack(
     """
     synset_map = load_imagenet_classes()
     target_description = synset_map[target_class]
+    
+	# setup model and inputs transforms
+    model, transforms = get_model(model_name='mobilenetv4_conv_small_050.e3000_r224_in1k')
     
     # Set default output path if not provided
     if output_path is None:
