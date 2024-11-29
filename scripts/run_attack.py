@@ -1,9 +1,9 @@
 import typer
+import torch
 import numpy as np
 from pathlib import Path
 from typing import Optional, Dict
-from enum import Enum
-from targeted_adversarial.io import load_imagenet_classes, read_image
+from targeted_adversarial.io import load_imagenet_classes, read_image, retrieve_imagenet_image, save_tensor_as_jpeg
 from targeted_adversarial.timm_models import get_model, predict_topk
 from targeted_adversarial import pgd_linf_targ
 
@@ -116,43 +116,77 @@ def run_attack(
 
 	# Set default output path if not provided
 	if output_path is None:
-		output_path = path_to_source_image.parent / f"{path_to_source_image.stem}_adversarial.png"
+		output_path = path_to_source_image.parent / f"{path_to_source_image.stem}_adversarial_{target_description[:5]}.jpg"
 
 	typer.echo(f"Loading source image from {path_to_source_image}")
-	source_image = read_image(path_to_source_image)
+	source_image = read_image(str(path_to_source_image))
+	# print(source_image.shape)
+
 	top_probabilities, top_class_indices = predict_topk(source_image, model, transforms)
 	class_names = values_synset_map[top_class_indices.cpu().detach().numpy()]
 
-	typer.echo("Source image top classes are:")
-	for c, p in zip(class_names, top_probabilities):
-		typer.echo(c, p)
-		
-	typer.echo(f"Target class: {target_class} ({target_description})")
-    
-	
-    # try:
-    #     # Your attack code here
-    #     delta = pgd_linf_targ(
-    #         model=model,  # You'll need to load your model
-    #         X=X,  # Load and preprocess your image
-    #         y=y_true.squeeze(),
-    #         epsilon=epsilon,
-    #         alpha=alpha,
-    #         num_iter=num_iter,
-    #         y_targ=y_target.squeeze(),
-    #     )
-        
-    #     # Save the result
-    #     typer.echo(f"Saving adversarial example to {output_path}")
-        
-    # except Exception as e:
-    #     typer.secho(f"Error during attack: {str(e)}", fg=typer.colors.RED)
-    #     raise typer.Exit(1)
+	# print(class_names.shape)
+	# print(top_probabilities.size())
 
-    # typer.secho(
-    #     f"Successfully generated adversarial example: {output_path}",
-    #     fg=typer.colors.GREEN,
-    # )
+	typer.echo("Source image top predicted classes are:")
+	for c, p in zip(class_names.reshape(-1), top_probabilities.cpu().detach().numpy().flatten()):
+		print(c, p)
+		
+	typer.echo(f"\nTarget class: {target_class} ({target_description}), pulling sample image of target class...")
+	target_class_image = retrieve_imagenet_image(target_class)
+	print(target_class_image.size())
+
+	top_probabilities, top_class_indices = predict_topk(target_class_image, model, transforms)
+	class_names = values_synset_map[top_class_indices.cpu().detach().numpy()]
+    
+	typer.echo("Target class image top predicted classes are:")
+	for c, p in zip(class_names.reshape(-1), top_probabilities.cpu().detach().numpy().flatten()):
+		print(c, p)
+
+	typer.echo(f"Use {class_names.reshape(-1)[0]} as target class...")
+
+	X = torch.cat([transforms(source_image.unsqueeze(0)), transforms(target_class_image.unsqueeze(0))])
+
+	output = model(X)
+	top_p, top_c = torch.topk(output.softmax(dim=1) * 100, k=1)
+
+	y_true = top_c
+	y_target = y_true.detach().clone()
+	y_target = y_target.roll(1)
+
+	try:
+		delta = pgd_linf_targ(
+		model=model,
+		X=X,
+		y=y_true.squeeze(),
+		epsilon=epsilon,
+		alpha=alpha,
+		num_iter=num_iter,
+		y_targ=y_target.squeeze(),
+		)
+
+		# Save the result
+		typer.echo(f"Saving adversarial example to {output_path}")
+
+		adversarial_X = X.to(device) + delta.to(device)
+		save_tensor_as_jpeg(adversarial_X[0], str(output_path))
+
+		typer.echo("Adversarial image top predicted classes are:")
+		output = model(adversarial_X)
+		top_p, top_c = torch.topk(output.softmax(dim=1) * 100, k=5)
+		class_names = values_synset_map[top_c[0].cpu().detach().numpy()]
+    
+		for c, p in zip(class_names.reshape(-1), top_p[0].cpu().detach().numpy().flatten()):
+			print(c, p)
+
+	except Exception as e:
+		typer.secho(f"Error during attack: {str(e)}", fg=typer.colors.RED)
+		raise typer.Exit(1)
+
+	typer.secho(
+	f"Successfully generated adversarial example: {output_path}",
+	fg=typer.colors.GREEN,
+	)
 
 if __name__ == "__main__":
 	app()

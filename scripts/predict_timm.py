@@ -9,7 +9,7 @@ def predict_timm(X, model_name="mobilenetv4_conv_small_050.e3000_r224_in1k"):
 		model_name,
 		pretrained=True,
 	)
-	model.eval();
+	model.eval()
 	data_config = timm.data.resolve_model_data_config(model)
 	transforms = timm.data.create_transform(**data_config, is_training=False)
 	output = model(transforms(torch.rand((3,224,224))).unsqueeze(0))

@@ -16,6 +16,8 @@ def get_model(model_name: str='mobilenetv4_conv_small_050.e3000_r224_in1k'):
 
 
 def predict_topk(image, model, transforms, k=5):
+	if model.training:
+		model.eval()
 	output = model(transforms(image).unsqueeze(0))
 	top_probabilities, top_class_indices = torch.topk(output.softmax(dim=1) * 100, k=k)
 	return top_probabilities, top_class_indices
