@@ -19,7 +19,15 @@ classifiers = [
 dependencies = [
     "torch",
     "timm",
+    "typer",
+    "einops",
+    "torchvision",
+    "Pillow",
+    "tqdm"
 ]
 
 [project.urls]
 "Homepage" = "https://github.com/kurmukovai/targeted-adversarial-attack"
+
+[project.scripts]
+targeted-adversarial = "targeted_adversarial.run_attack:app"
