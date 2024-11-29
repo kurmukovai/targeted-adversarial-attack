@@ -2,32 +2,13 @@ import typer
 from pathlib import Path
 from typing import Optional, Dict
 from enum import Enum
+from targeted_adversarial.io import load_imagenet_classes
 
 app = typer.Typer(
     name="targeted-adversarial",
     help="Generate targeted adversarial examples for image classification models",
     no_args_is_help=True,
 )
-
-def load_imagenet_classes() -> Dict[str, str]:
-    """Load ImageNet synset IDs and their descriptions."""
-    synset_map = {}
-    synset_file = Path(__file__).parent / "data" / "LOC_synset_mapping.txt"
-    
-    try:
-        with open(synset_file, 'r') as f:
-            for line in f:
-                # Each line format: n02119789 kit_fox, red_fox, Vulpes_vulpes
-                synset_id, description = line.strip().split(' ', 1)
-                synset_map[synset_id] = description
-    except FileNotFoundError:
-        typer.secho(
-            f"Error: ImageNet synset mapping file not found at {synset_file}",
-            fg=typer.colors.RED,
-        )
-        raise typer.Exit(1)
-    
-    return synset_map
 
 def validate_target_class(value: str) -> str:
     """Validate that the target class is a valid ImageNet synset ID."""
@@ -54,7 +35,7 @@ def list_classes():
     
     typer.echo("Available ImageNet classes:")
     for synset_id, description in synset_map.items():
-        typer.echo(f"{synset_id}: {description}")
+        typer.echo(f"{synset_id} {description}")
 
 @app.command()
 def run_attack(
