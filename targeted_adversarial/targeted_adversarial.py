@@ -21,6 +21,11 @@ def pgd_linf_targ(model, X, y, epsilon, alpha, num_iter, y_targ):
         logits = model(X + delta)
         
         loss = (logits[:, y_targ] - logits.gather(1, y[:, None])[:,0]).sum()
+        # TODO: try only maximizing logits[:, y_targ]
+        # works, but worse
+        
+        # print(logits[:, y_targ].sum(), logits.gather(1, y[:, None])[:,0].sum())
+        # loss = logits[:, y_targ].sum()
         loss.backward()
 
         with torch.no_grad():
