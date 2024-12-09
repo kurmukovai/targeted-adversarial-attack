@@ -29,7 +29,7 @@ targeted-adversarial run-attack path/to/image.jpg target_class_id --epsilon 0.1
 
 ```bash
 # Generate an adversarial example to make a dog image be classified as a cat
-targeted-adversarial run-attack assets/sample_images/dog.jpg n02123045
+targeted-adversarial run-attack targeted_adversarial/assets/sample_images/dog.jpg n02123045
 ```
 
 ### Parameters

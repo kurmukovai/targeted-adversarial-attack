@@ -34,6 +34,7 @@ def validate_epsilon(value: float) -> float:
 @app.command()
 def list_classes():
 	"""List all available ImageNet classes and their synset IDs."""
+	# targeted-adversarial list-classes | grep "^n[0-9]* .*pig"
 	synset_map = load_imagenet_classes()
 
 	typer.echo("Available ImageNet classes:")
@@ -120,13 +121,9 @@ def run_attack(
 
 	typer.echo(f"Loading source image from {path_to_source_image}")
 	source_image = read_image(str(path_to_source_image))
-	# print(source_image.shape)
 
 	top_probabilities, top_class_indices = predict_topk(source_image, model, transforms)
 	class_names = values_synset_map[top_class_indices.cpu().detach().numpy()]
-
-	# print(class_names.shape)
-	# print(top_probabilities.size())
 
 	typer.echo("Source image top predicted classes are:")
 	for c, p in zip(class_names.reshape(-1), top_probabilities.cpu().detach().numpy().flatten()):
@@ -134,7 +131,6 @@ def run_attack(
 		
 	typer.echo(f"\nTarget class: {target_class} ({target_description}), pulling sample image of target class...")
 	target_class_image = retrieve_imagenet_image(target_class)
-	print(target_class_image.size())
 
 	top_probabilities, top_class_indices = predict_topk(target_class_image, model, transforms)
 	class_names = values_synset_map[top_class_indices.cpu().detach().numpy()]
@@ -151,31 +147,21 @@ def run_attack(
 	top_p, top_c = torch.topk(output.softmax(dim=1) * 100, k=1)
 
 	y_true = top_c
-	y_target = y_true.detach().clone()
-	y_target = y_target.roll(1)
+	y_target = y_true.detach().clone().roll(1)
 
 	try:
-		delta = pgd_linf_targ(
-		model=model,
-		X=X,
-		y=y_true.squeeze(),
-		epsilon=epsilon,
-		alpha=alpha,
-		num_iter=num_iter,
-		y_targ=y_target.squeeze(),
-		)
-
+		delta = pgd_linf_targ(model=model, X=X, y=y_true.squeeze(), epsilon=epsilon,
+						alpha=alpha, num_iter=num_iter, y_targ=y_target.squeeze(),)
+		
 		# Save the result
 		typer.echo(f"Saving adversarial example to {output_path}")
-
 		adversarial_X = X.to(device) + delta.to(device)
-		save_tensor_as_jpeg(adversarial_X[0], str(output_path))
+		save_tensor_as_jpeg(adversarial_X[0], output_path)
 
 		typer.echo("Adversarial image top predicted classes are:")
 		output = model(adversarial_X)
 		top_p, top_c = torch.topk(output.softmax(dim=1) * 100, k=5)
 		class_names = values_synset_map[top_c[0].cpu().detach().numpy()]
-    
 		for c, p in zip(class_names.reshape(-1), top_p[0].cpu().detach().numpy().flatten()):
 			print(c, p)
 
@@ -183,10 +169,7 @@ def run_attack(
 		typer.secho(f"Error during attack: {str(e)}", fg=typer.colors.RED)
 		raise typer.Exit(1)
 
-	typer.secho(
-	f"Successfully generated adversarial example: {output_path}",
-	fg=typer.colors.GREEN,
-	)
+	typer.secho(f"Successfully generated adversarial example: {output_path}", fg=typer.colors.GREEN,)
 
 if __name__ == "__main__":
 	app()
